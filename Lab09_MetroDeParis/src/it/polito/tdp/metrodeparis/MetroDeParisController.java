@@ -40,6 +40,9 @@ public class MetroDeParisController {
     @FXML
     void doPercorso(ActionEvent event) {
 
+    	String percorso = model.getPercorso(boxPartenza.getValue(), boxArrivo.getValue());
+    	txtResult.appendText("Percorso: \n");
+    	txtResult.appendText(percorso);
     }
 
     @FXML // This method is called by the FXMLLoader when initialization is complete
