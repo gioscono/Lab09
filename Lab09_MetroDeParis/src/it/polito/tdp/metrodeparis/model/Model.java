@@ -1,5 +1,6 @@
 package it.polito.tdp.metrodeparis.model;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -12,6 +13,7 @@ import org.jgrapht.Graphs;
 import org.jgrapht.WeightedGraph;
 import org.jgrapht.alg.DijkstraShortestPath;
 import org.jgrapht.graph.DefaultWeightedEdge;
+import org.jgrapht.graph.DirectedWeightedMultigraph;
 import org.jgrapht.graph.WeightedMultigraph;
 import org.jgrapht.traverse.BreadthFirstIterator;
 
@@ -26,17 +28,25 @@ public class Model {
 	public void Model(){
 	}
 	
-	private List<Fermata> listaFermate;
+	private List<FermataConLinea> listaFermate;
+	private List<Fermata> fermateSemplici;
 	private WeightedGraph<Fermata, Tratta> grafo;
 	private List<CoppiaFermate> coppie;
 	private List<Linea> linee;
 	
-	public List<Fermata> getFermate() {
+	public List<FermataConLinea> getFermate() {
 		if(listaFermate==null){
 			MetroDAO dao = new MetroDAO();
 			listaFermate = dao.getAllFermate();
 		}
 		return listaFermate;
+	}
+	public List<Fermata> fermateSemplici(){
+		if(fermateSemplici == null){
+			MetroDAO dao = new MetroDAO();
+			fermateSemplici = dao.getAllFermateController();
+		}
+		return fermateSemplici;
 	}
 	
 	public WeightedGraph getGrafo(){
@@ -47,9 +57,9 @@ public class Model {
 	}
 
 	private void creaGrafo() {
-		grafo = new WeightedMultigraph<Fermata, Tratta>(Tratta.class);
+		grafo = new DirectedWeightedMultigraph<Fermata, Tratta>(Tratta.class);
 		//AGGIUNGO I VERTICI
-		for(Fermata f : this.getFermate()){
+		for(FermataConLinea f : this.getFermate()){
 			grafo.addVertex(f);
 		}
 		
@@ -62,11 +72,21 @@ public class Model {
 			t.setLinea(this.cercaLinea(cf.getIdLinea()));
 			grafo.setEdgeWeight(t, calcolaPeso(cf.getfPartenza(), cf.getfArrivo(), t.getLinea()));
 		}
+		
+		for(FermataConLinea f: listaFermate){
+			for(FermataConLinea f1: listaFermate){
+				if(f.getIdFermata()==f1.getIdFermata() && f1.getCodLinea()!=f.getCodLinea()){
+					Tratta t = grafo.addEdge(f, f1);
+					t.setLinea(this.cercaLinea(f1.getCodLinea()));
+					grafo.setEdgeWeight(t, this.cercaLinea(f1.getCodLinea()).getIntervallo());
+				}
+			}
+		}
 		//System.out.println(grafo);
 		
 	}
 
-	private double calcolaPeso(Fermata partenza, Fermata arrivo, Linea linea) {
+	private double calcolaPeso(FermataConLinea partenza, FermataConLinea arrivo, Linea linea) {
 		double spazio = LatLngTool.distance(partenza.getCoords(), arrivo.getCoords(), LengthUnit.KILOMETER);
 		return (spazio/linea.getVelocita());
 	}
@@ -79,12 +99,14 @@ public class Model {
 		return null;
 	}
 
-	public String getPercorso(Fermata partenza, Fermata arrivo) {
+	public String getPercorso(Fermata partenza, Fermata destinazione) {
 		 if(grafo==null)
 			this.creaGrafo();
-		 DijkstraShortestPath<Fermata,Tratta> percorso = new  DijkstraShortestPath<Fermata,Tratta>(grafo, partenza, arrivo); 
+		 List<FermataConLinea> partenze = this.cercaFermateSpecifiche(partenza);
+		 List<FermataConLinea> destinazioni = this.cercaFermateSpecifiche(destinazione);
+		 DijkstraShortestPath<Fermata,Tratta> percorso = new  DijkstraShortestPath<Fermata,Tratta>(grafo, fermata, fermata2); 
 		 List<Tratta> lista = percorso.getPathEdgeList();
-		 LinkedHashSet<Fermata> fermate = new LinkedHashSet<Fermata>();
+		 LinkedHashSet<FermataConLinea> fermate = new LinkedHashSet<FermataConLinea>();
 		 String s = "";
 		 
 		 for(Tratta  t :lista ){
@@ -92,7 +114,7 @@ public class Model {
 			 fermate.add(grafo.getEdgeTarget(t));
 		 }
 
-		 Iterator<Fermata> it = fermate.iterator();
+		 Iterator<FermataConLinea> it = fermate.iterator();
 		 
 		 while(it.hasNext()){
 			 s+=it.next().toString()+"\n";
@@ -100,10 +122,18 @@ public class Model {
 		 s+="Tempo totale: ";
 		 double tempo = 0;
 		 tempo += 0.5*(fermate.size()-2);
-		 tempo += percorso.getPathLength()*60;
+		 tempo += percorso.getPathLength()*30;
 		 s+=tempo;
 		 return s;
 		 
+	}
+	private List<FermataConLinea> cercaFermateSpecifiche(Fermata fermata) {
+		List<FermataConLinea> fermate = new ArrayList<FermataConLinea>();
+		for(FermataConLinea l : listaFermate){
+			if(l.getIdFermata()==fermata.getIdFermata())
+				fermate.add(l);
+		}
+		return fermate;
 	}
 	
 	
